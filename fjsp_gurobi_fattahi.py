@@ -1,29 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 FJSP con GUROBIpy – Modelo MILP, ejecución por lotes y tabla de resultados
-
-• Instancias: formato del repo SchedulingLab/fjsp-instances (carpeta 'fattahi').
-  Formato (README del repo):
-    - Primera línea: <n_jobs> <n_machines>
-    - Luego, por cada job: <n_operaciones> y, para cada operación,
-      <k_maquinas> seguido de k pares <maquina> <tiempo> (índice de máquina inicia en 0)
-
-• Modelo: Flexible Job Shop clásico, objetivo minimizar makespan (C_max).
-  Variables:
-    - y[i,j,h] ∈ {0,1}: 1 si la operación (j,h) se procesa en máquina i.
-    - s[j,h] ≥ 0: tiempo de inicio de (j,h).
-    - x[a,b,i] ∈ {0,1}: orden en máquina i entre operaciones a y b.
-  Restricciones (esquema):
-    1) Asignación única: sum_i y[i,j,h] = 1 para toda operación (j,h).
-    2) Precedencia en cada job: s[j,h+1] ≥ s[j,h] + p(j,h).
-    3) Capacidad de máquina (disyuntivas con Big-M):
-       s_b ≥ s_a + p_a − M*(1 − x_{a,b,i} + 2 − y_{i,a} − y_{i,b})
-       s_a ≥ s_b + p_b − M*(x_{a,b,i} + 2 − y_{i,a} − y_{i,b})
-    4) Makespan: Cmax ≥ s[j,last] + p(j,last)
-
-• Parámetros GUROBI: TimeLimit=3600s.
-• Salidas: CSV y Markdown con tamaño de instancia, #vars, #restricciones, función objetivo, gap y tiempo.
 """
+
 from __future__ import annotations
 import os, math, time, argparse, csv
 from dataclasses import dataclass
@@ -79,7 +58,7 @@ def parse_fjsp_instance(path: str) -> Instance:
     return Instance(name=name, n_jobs=n_jobs, n_machs=n_machs, ops=ops, job_ops_idx=job_ops_idx)
 
 
-# -------------------- CONSTRUCCIÓN DEL MODELO MILP --------------------
+# -------------------- MODELO MILP --------------------
 
 def build_model(inst: Instance, time_limit: int = 3600, threads: int | None = None, mipgap: float | None = None):
     if gp is None:
@@ -144,7 +123,7 @@ def build_model(inst: Instance, time_limit: int = 3600, threads: int | None = No
     return m
 
 
-# -------------------- EJECUCIÓN Y REPORTE --------------------
+# -------------------- EJECUCIÓN --------------------
 
 def find_fattahi_files(root: str):
     files = []
@@ -167,16 +146,27 @@ def solve_instance(path: str, time_limit: int = 3600, threads: int | None = None
     status = model.Status
     obj = model.ObjVal if model.SolCount > 0 else float('nan')
     gap = model.MIPGap if hasattr(model, 'MIPGap') else float('nan')
+
+    # Tamaño tipo Fattahi: J.O.M
+    ops_per_job = len(inst.job_ops_idx[0]) if inst.job_ops_idx else 0
+    size_str = f"{inst.n_jobs}.{ops_per_job}.{inst.n_machs}"
+
+    int_vars = model.NumBinVars
+    total_vars = model.NumVars
+    cont_vars = total_vars - int_vars
+
     return {
-        'instance': os.path.basename(path),
+        'problem_no': os.path.splitext(os.path.basename(path))[0],
+        'size': size_str,
         'jobs': inst.n_jobs,
         'machines': inst.n_machs,
         'ops': len(inst.ops),
-        'vars': model.NumVars,
-        'constrs': model.NumConstrs,
-        'objective': obj,
-        'gap': gap,
-        'time_s': runtime,
+        'integer_vars': int_vars,
+        'non_integer_vars': cont_vars,
+        'constraints': model.NumConstrs,
+        'cmax': obj,
+        'mip_gap': gap,
+        'cpu_time_s': runtime,
         'status': status
     }
 
@@ -203,35 +193,54 @@ def main():
         try:
             row = solve_instance(p, time_limit=args.time_limit, threads=args.threads, mipgap=args.mipgap)
         except Exception as e:
-            row = {'instance': os.path.basename(p), 'error': str(e)}
+            row = {'problem_no': os.path.splitext(os.path.basename(p))[0], 'error': str(e)}
         rows.append(row)
 
-    fieldnames = ['instance','jobs','machines','ops','vars','constrs','objective','gap','time_s','status']
+    # ---------------- CSV ----------------
+    fieldnames = [
+        'problem_no', 'size', 'jobs', 'machines', 'ops',
+        'integer_vars', 'non_integer_vars',
+        'constraints', 'cmax', 'mip_gap',
+        'cpu_time_s', 'status'
+    ]
+
     with open(args.out, 'w', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
         for r in rows:
             w.writerow({k: r.get(k, '') for k in fieldnames})
+
     print(f"\nCSV guardado en {args.out}")
 
+    # ---------------- Markdown ----------------
     md_path = os.path.splitext(args.out)[0] + '.md'
+
     def fmt(x):
         if isinstance(x, float):
-            if math.isnan(x): return '-'
+            if math.isnan(x):
+                return '-'
             return f"{x:.4g}"
         return str(x)
+
     with open(md_path, 'w', encoding='utf-8') as f:
-        f.write('| Instancia | |J| | |M| | |Ops| | Vars | Restr. | Obj (Cmax) | GAP | t (s) |\n')
-        f.write('|:--|--:|--:|--:|--:|--:|--:|--:|--:|\n')
+        f.write('| Problema | Size (J.O.M) | J | M | Ops | Var int | Var cont | Restr. | Cmax | GAP | t (s) |\n')
+        f.write('|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|\n')
         for r in rows:
             if 'error' in r:
-                f.write(f"| {r['instance']} | - | - | - | - | - | ERROR: {r['error']} | - | - |\n")
+                f.write(
+                    f"| {r['problem_no']} | - | - | - | - | - | - | - | ERROR: {r['error']} | - | - |\n"
+                )
             else:
-                f.write(f"| {r['instance']} | {r['jobs']} | {r['machines']} | {r['ops']} | {r['vars']} | {r['constrs']} | {fmt(r['objective'])} | {fmt(r['gap'])} | {fmt(r['time_s'])} |\n")
+                f.write(
+                    f"| {r['problem_no']} | {r['size']} | {r['jobs']} | {r['machines']} | {r['ops']} | "
+                    f"{r['integer_vars']} | {r['non_integer_vars']} | {r['constraints']} | "
+                    f"{fmt(r['cmax'])} | {fmt(r['mip_gap'])} | {fmt(r['cpu_time_s'])} |\n"
+                )
+
     print(f"Markdown guardado en {md_path}")
 
 
 if __name__ == '__main__':
     if gp is None:
-        print("ADVERTENCIA: gurobipy no está instalado. El script construye el modelo pero no podrá resolver.")
+        print("ADVERTENCIA: gurobipy no está instalado.")
     main()
