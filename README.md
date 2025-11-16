@@ -152,5 +152,6 @@ python3 fjsp_gurobi_fattahi.py \
 Trabajo desarrollado para el curso **Optimización I (546351)**,
 Universidad de Concepción.
 
-**Integrantes:** - Cristóbal Muñoz Barrios\
+**Integrantes:** 
+- Cristóbal Muñoz Barrios
 - Bastián Ceballos Zapata
