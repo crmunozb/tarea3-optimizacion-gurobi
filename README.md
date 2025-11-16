@@ -45,17 +45,17 @@ python3 fjsp_gurobi_fattahi.py \
 
 ### Parámetros disponibles
 
-  Parámetro           Descripción
-  ------------------- ----------------------------------------
-  `--repo_root`       Carpeta o archivo con las instancias
-  `--time_limit`      Tiempo máximo por instancia (s)
-  `--threads`         Número de threads del solver
-  `--mipgap`          Gap objetivo opcional
-  `--out`             Nombre del archivo CSV de salida
-  `--max_instances`   Número máximo de instancias a resolver
+| Parámetro         | Descripción                                  |
+|-------------------|----------------------------------------------|
+| `--repo_root`     | Carpeta o archivo con las instancias         |
+| `--time_limit`    | Tiempo máximo por instancia (s)              |
+| `--threads`       | Número de threads del solver                 |
+| `--mipgap`        | Gap objetivo opcional                        |
+| `--out`           | Nombre del archivo CSV de salida             |
+| `--max_instances` | Número máximo de instancias a resolver       |
 
-El script imprime el progreso y genera automáticamente los archivos de
-salida.
+El script imprime el progreso y genera automáticamente los archivos de salida.
+
 
 ## 4. Modelo MILP (resumen técnico)
 
