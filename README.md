@@ -59,43 +59,66 @@ salida.
 
 ## 4. Modelo MILP (resumen técnico)
 
-### Variables:
+### Variables
 
--   **Asignación a máquina:**\
-    ( y\_{i,o} = 1 ) si la operación (o) se ejecuta en la máquina (i).
+- **Asignación a máquina**  
+  `y[i,o] = 1` si la operación `o` se ejecuta en la máquina `i`.
 
--   **Tiempo de inicio:**\
-    ( s_o `\ge 0`{=tex} )
+- **Tiempo de inicio**  
+  `s[o] >= 0`
 
--   **Makespan:**\
-    ( C\_{`\max`{=tex}} )
+- **Makespan**  
+  `Cmax`
 
--   **Ordenamiento por máquina:**\
-    ( x\_{i,a,b} = 1 ) si en máquina (i), la operación (a) precede a
-    (b).
+- **Ordenamiento por máquina**  
+  `x[i,a,b] = 1` si en la máquina `i` la operación `a` se ejecuta antes que `b`.
 
-### Restricciones:
+---
 
-1.  **Asignación única:**\
-    \[ `\sum`{=tex}*{i `\in `{=tex}M_o} y*{i,o} = 1 \]
+### Restricciones
 
-2.  **Precedencias por job:**\
-    \[ s_b `\ge `{=tex}s_a + p_a(i) `\cdot `{=tex}y\_{i,a} \]
+#### 1. Asignación única  
+Cada operación debe asignarse exactamente a una de sus máquinas alternativas:
 
-3.  **Disyuntivas por máquina (Big-M):**\
-    Para cada par de operaciones (a,b) que pueden procesarse en la misma
-    máquina:
+```
+sum_i y[i,o] = 1
+```
 
-    -   (x\_{i,a,b} = 1): (a) antes que (b)\
-    -   (x\_{i,a,b} = 0): (b) antes que (a)
+#### 2. Precedencias por job  
+Una operación no puede comenzar antes que su predecesora en el mismo trabajo:
 
-4.  **Makespan:**\
-    \[ C\_{`\max`{=tex}}
-    `\ge `{=tex}s\_{`\text{última operación}`{=tex}} + p \]
+```
+s[b] >= s[a] + p[a]      # p[a] depende de la máquina asignada
+```
 
-### Objetivo:
+#### 3. Disyuntivas por máquina (Big-M)  
+Para cada par de operaciones (a,b) que pueden procesarse en la misma máquina:
 
-\[ `\min `{=tex}C\_{`\max`{=tex}} \]
+- Si `x[i,a,b] = 1`: a antes que b  
+- Si `x[i,a,b] = 0`: b antes que a  
+
+Restricciones modeladas como:
+
+```
+s[b] >= s[a] + p[a] - M*(1 - x[i,a,b])
+s[a] >= s[b] + p[b] - M*x[i,a,b]
+```
+
+#### 4. Makespan
+
+```
+Cmax >= s[last_op] + p[last_op]
+```
+
+---
+
+### Objetivo
+
+Minimizar el makespan:
+
+```
+minimize Cmax
+```
 
 ## 5. Resultados generados
 
@@ -109,8 +132,14 @@ optimización.
 ## 6. Reproducir el experimento del informe
 
 ``` bash
-python fjsp_solver.py     --repo_root instancias/     --time_limit 3600     --threads 1     --out resultados_fattahi.csv
+python3 fjsp_gurobi_fattahi.py \
+    --repo_root fjsp-instances \
+    --time_limit 3600 \
+    --threads 1 \
+    --out resultados_fattahi.csv
+
 ```
+
 
 ## 7. Requisitos
 
